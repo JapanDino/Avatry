@@ -1,0 +1,30 @@
+{
+  "female": {
+    "neutral": {
+      "height": 160.5,
+      "chest": 82.5,
+      "waist": 68.2,
+      "hips": 85.8
+    },
+    "perUnit": {
+      "height": 70.82,
+      "chest": 17.3,
+      "waist": 10.32,
+      "hips": 13.19
+    }
+  },
+  "male": {
+    "neutral": {
+      "height": 171.4,
+      "chest": 89.7,
+      "waist": 74.3,
+      "hips": 87.6
+    },
+    "perUnit": {
+      "height": 70.86,
+      "chest": 16.99,
+      "waist": 10.53,
+      "hips": 14.93
+    }
+  }
+}
