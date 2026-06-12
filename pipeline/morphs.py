@@ -10,22 +10,30 @@
 from __future__ import annotations
 
 # --- Морфы тела ---
-# MVP: пять управляющих морфов, которыми мы строим фигуру по меркам.
-BODY_MORPHS_MVP: tuple[str, ...] = (
-    "height",   # рост
-    "weight",   # общая полнота
-    "chest",    # обхват груди
-    "waist",    # обхват талии
-    "hips",     # обхват бёдер
+# Активный набор параметров фигуры (экспортируются как morph targets в GLB).
+# Покрывают посадку верха и низа: габариты, обхваты корпуса и конечностей.
+BODY_MORPHS_ACTIVE: tuple[str, ...] = (
+    "height",     # рост (макрос)
+    "weight",     # общая полнота (макрос)
+    "muscle",     # мускулатура (макрос)
+    "chest",      # обхват груди
+    "waist",      # обхват талии
+    "hips",       # обхват бёдер
+    "shoulders",  # ширина плеч
+    "neck",       # обхват шеи
+    "arm",        # обхват плеча (бицепс)
+    "thigh",      # обхват бедра
 )
+
+# Историческое имя для совместимости со старыми ссылками.
+BODY_MORPHS_MVP: tuple[str, ...] = BODY_MORPHS_ACTIVE
 
 # Резерв на будущие этапы (детализация фигуры). Пока не экспортируются.
 BODY_MORPHS_RESERVED: tuple[str, ...] = (
-    "shoulders",  # ширина плеч
     "belly",      # живот
     "inseam",     # длина внутреннего шва ног
-    "neck",       # обхват шеи
-    "sleeve_ref", # референс длины руки
+    "calf",       # обхват голени
+    "wrist",      # обхват запястья
 )
 
 # --- Морфы одежды (крой) ---
@@ -36,9 +44,6 @@ GARMENT_MORPHS: tuple[str, ...] = (
     "sleeve_length",   # длина рукава
     "fit_ease",        # общая свобода кроя (oversize ↔ приталенный)
 )
-
-# Полный набор морфов тела, который реально кладётся в GLB на текущем этапе.
-BODY_MORPHS_ACTIVE: tuple[str, ...] = BODY_MORPHS_MVP
 
 ALL_KNOWN_MORPHS: frozenset[str] = frozenset(
     BODY_MORPHS_MVP + BODY_MORPHS_RESERVED + GARMENT_MORPHS
