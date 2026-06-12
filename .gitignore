@@ -19,6 +19,9 @@ __pycache__/
 # --- Visual review output (regenerated, not source) ---
 artifacts/
 
+# --- Generated 3D dev-assets (regenerable from pipeline/) ---
+web/public/models/
+
 # --- Tooling / OS ---
 .DS_Store
 Thumbs.db

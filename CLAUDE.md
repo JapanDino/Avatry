@@ -47,4 +47,5 @@ docs/       — документация (см. выше)
 - **web dev-сервер**: `cd web && npm run dev -- --host 127.0.0.1`
   - На Windows обязательно `--host 127.0.0.1`: по умолчанию Vite биндится только на IPv6 (`::1`), и тогда браузер/playwright по IPv4 получают `ERR_CONNECTION_REFUSED`.
 - **web сборка/типы**: `cd web && npm run build` (tsc -b + vite build) · `npm run typecheck`
-- **pipeline**: появится на этапе 1 (требует Blender; путь в STATUS.md).
+- **pipeline (Blender headless)**: `& "C:\Program Files\Blender Foundation\Blender 5.1\blender.exe" --background --python <script>`
+  - Blender 5.1.2, встроенный Python 3.13.9.
