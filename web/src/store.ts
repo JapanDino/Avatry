@@ -6,6 +6,7 @@ import {
   measurementsToMorphs,
   neutralMeasurements,
 } from "./calibration";
+import type { Garment } from "./fit";
 
 /**
  * Морфы тела (имена = morph targets в GLB, см. pipeline/morphs.py).
@@ -69,6 +70,8 @@ interface AvatarState {
   measurements: Measurements;
   morphs: Record<MorphName, number>;
   showClothing: boolean;
+  garment: Garment | null;
+  selectedSize: string | null;
 
   setCalibration: (cal: Calibration) => void;
   setGender: (g: Gender) => void;
@@ -76,6 +79,8 @@ interface AvatarState {
   setMorph: (name: MorphName, value: number) => void;
   resetMeasurements: () => void;
   setShowClothing: (v: boolean) => void;
+  setGarment: (g: Garment | null) => void;
+  setSelectedSize: (label: string | null) => void;
 }
 
 function recompute(
@@ -93,6 +98,8 @@ export const useAvatarStore = create<AvatarState>((set) => ({
   measurements: FALLBACK_MEASUREMENTS,
   morphs: { ...ZERO },
   showClothing: true,
+  garment: null,
+  selectedSize: null,
 
   setCalibration: (cal) =>
     set((s) => {
@@ -140,4 +147,6 @@ export const useAvatarStore = create<AvatarState>((set) => ({
     }),
 
   setShowClothing: (v) => set({ showClothing: v }),
+  setGarment: (g) => set({ garment: g, selectedSize: null }),
+  setSelectedSize: (label) => set({ selectedSize: label }),
 }));

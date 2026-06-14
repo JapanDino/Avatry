@@ -17,8 +17,10 @@ import {
 import { ToneMappingMode } from "postprocessing";
 import { AvatarScene } from "./AvatarViewer";
 import { MeasurementForm } from "./MeasurementForm";
+import { FitPanel } from "./FitPanel";
 import { useAvatarStore } from "./store";
 import type { Calibration } from "./calibration";
+import type { Garment } from "./fit";
 
 /**
  * Этап 1: просмотрщик параметрического тела с базовой одеждой.
@@ -27,12 +29,23 @@ import type { Calibration } from "./calibration";
  */
 export default function App() {
   const setCalibration = useAvatarStore((s) => s.setCalibration);
+  const gender = useAvatarStore((s) => s.gender);
+  const setGarment = useAvatarStore((s) => s.setGarment);
+
   useEffect(() => {
     fetch("/calibration.json")
       .then((r) => r.json())
       .then((cal: Calibration) => setCalibration(cal))
       .catch((e) => console.error("calibration load failed", e));
   }, [setCalibration]);
+
+  // демо-товар каталога по полу (размерная таблица)
+  useEffect(() => {
+    fetch(`/garments/tee-${gender}.json`)
+      .then((r) => r.json())
+      .then((g: Garment) => setGarment(g))
+      .catch((e) => console.error("garment load failed", e));
+  }, [gender, setGarment]);
 
   return (
     <>
@@ -109,6 +122,7 @@ export default function App() {
         </EffectComposer>
       </Canvas>
       <MeasurementForm />
+      <FitPanel />
     </>
   );
 }

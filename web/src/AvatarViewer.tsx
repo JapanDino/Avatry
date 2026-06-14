@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { useAvatarStore } from "./store";
+import { computeFit } from "./fit";
 
 import type { Gender } from "./calibration";
 
@@ -12,51 +13,42 @@ const urls = (gender: Gender) => ({
 });
 
 /**
- * Процедурная карта нормалей ткани (плетение basketweave). Генерируется один раз,
- * тайлится по UV вещи — даёт микрорельеф хлопка без загрузки текстур.
+ * CC0-текстуры ткани (cotton_jersey, Poly Haven): diffuse + normal + roughness.
+ * Тайлятся по UV вещи; см. assets/SOURCES.md.
  */
-let _fabricNormal: THREE.DataTexture | null = null;
-function fabricNormalTexture(): THREE.DataTexture {
-  if (_fabricNormal) return _fabricNormal;
-  const size = 256;
-  const threads = 28;
-  const strength = 1.2;
-  const data = new Uint8Array(size * size * 4);
-  // гладкое плетение: «яичная решётка» (sin*sin) — без резких градиентов
-  const f = (Math.PI * 2 * threads) / size;
-  const height = (x: number, y: number) =>
-    Math.sin(x * f) * Math.sin(y * f) * 0.5 + 0.5;
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const hL = height((x - 1 + size) % size, y);
-      const hR = height((x + 1) % size, y);
-      const hD = height(x, (y - 1 + size) % size);
-      const hU = height(x, (y + 1) % size);
-      // нормаль = normalize(-dh/dx, -dh/dy, 1)
-      let nx = (hL - hR) * strength;
-      let ny = (hD - hU) * strength;
-      let nz = 1.0;
-      const len = Math.hypot(nx, ny, nz) || 1;
-      nx /= len;
-      ny /= len;
-      nz /= len;
-      const i = (y * size + x) * 4;
-      data[i] = (nx * 0.5 + 0.5) * 255;
-      data[i + 1] = (ny * 0.5 + 0.5) * 255;
-      data[i + 2] = (nz * 0.5 + 0.5) * 255;
-      data[i + 3] = 255;
-    }
-  }
-  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(8, 8);
-  tex.generateMipmaps = true;
-  tex.minFilter = THREE.LinearMipmapLinearFilter;
-  tex.magFilter = THREE.LinearFilter;
-  tex.anisotropy = 8;
-  tex.needsUpdate = true;
-  _fabricNormal = tex;
-  return tex;
+const _texLoader = new THREE.TextureLoader();
+function fabricTex(file: string, srgb: boolean, repeat: number): THREE.Texture {
+  const t = _texLoader.load(`/textures/cotton_jersey/${file}`);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(repeat, repeat);
+  t.anisotropy = 8;
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/**
+ * Физический материал ткани: настоящие CC0-карты трикотажа (diffuse/normal/
+ * roughness) + sheen (мягкая ворсистость хлопка). Один экземпляр на всю одежду.
+ */
+let _fabricMat: THREE.MeshPhysicalMaterial | null = null;
+function fabricMaterial(): THREE.MeshPhysicalMaterial {
+  if (_fabricMat) return _fabricMat;
+  const REPEAT = 6;
+  const m = new THREE.MeshPhysicalMaterial({
+    map: fabricTex("diff.jpg", true, REPEAT),
+    normalMap: fabricTex("nor_gl.jpg", false, REPEAT),
+    roughnessMap: fabricTex("rough.jpg", false, REPEAT),
+    color: new THREE.Color(0.55, 0.58, 0.66), // тонировка трикотажа
+    roughness: 1.0,
+    metalness: 0.0,
+    sheen: 1.0,
+    sheenRoughness: 0.8,
+    sheenColor: new THREE.Color(0xffffff),
+    envMapIntensity: 1.0,
+  });
+  m.normalScale = new THREE.Vector2(0.8, 0.8);
+  _fabricMat = m;
+  return m;
 }
 
 /**
@@ -64,7 +56,22 @@ function fabricNormalTexture(): THREE.DataTexture {
  * skin=true заменяет материал на нейтральную кожу (для тела); для одежды
  * сохраняется материал из GLB.
  */
-function MorphedModel({ url, skin = false }: { url: string; skin?: boolean }) {
+/** Масштаб одежды под выбранный размер (обхват/длина), пивот по высоте плеч. */
+interface SizeScale {
+  girth: number;
+  length: number;
+  pivotY: number;
+}
+
+function MorphedModel({
+  url,
+  skin = false,
+  sizeScale,
+}: {
+  url: string;
+  skin?: boolean;
+  sizeScale?: SizeScale;
+}) {
   const { scene } = useGLTF(url);
   const morphs = useAvatarStore((s) => s.morphs);
 
@@ -81,17 +88,8 @@ function MorphedModel({ url, skin = false }: { url: string; skin?: boolean }) {
             envMapIntensity: 0.9,
           });
         } else {
-          // одежда: материал из GLB + тканевая нормаль (плетение)
-          const mat = m.material as THREE.MeshStandardMaterial;
-          if (mat && "envMapIntensity" in mat) {
-            mat.envMapIntensity = 1.0;
-            mat.roughness = 0.9;
-            mat.metalness = 0.0;
-            mat.color.setRGB(0.5, 0.52, 0.58); // читаемый серый
-            mat.normalMap = fabricNormalTexture();
-            mat.normalScale = new THREE.Vector2(0.35, 0.35);
-            mat.needsUpdate = true;
-          }
+          // одежда: физический материал ткани со sheen (ворсистость хлопка)
+          m.material = fabricMaterial();
         }
         m.castShadow = true;
         m.receiveShadow = true;
@@ -114,6 +112,15 @@ function MorphedModel({ url, skin = false }: { url: string; skin?: boolean }) {
     }
   }, [meshes, morphs]);
 
+  if (sizeScale) {
+    // масштаб обхвата вокруг вертикальной оси (X,Z) + длины (Y) с пивотом у плеч
+    const { girth, length, pivotY } = sizeScale;
+    return (
+      <group position={[0, pivotY * (1 - length), 0]} scale={[girth, length, girth]}>
+        <primitive object={scene} />
+      </group>
+    );
+  }
   return <primitive object={scene} />;
 }
 
@@ -124,10 +131,43 @@ for (const g of ["female", "male"] as Gender[]) {
   useGLTF.preload(u.shorts);
 }
 
+/**
+ * Масштаб верха под выбранный размер относительно рекомендованного: больше размер
+ * → шире/длиннее (свободнее), меньше → ближе к телу. Так 3D-вещь меняется при
+ * смене размера, хотя GLB один (полноценные per-size меши — задача 4.3).
+ */
+function useTopSizeScale(): SizeScale | undefined {
+  const garment = useAvatarStore((s) => s.garment);
+  const measurements = useAvatarStore((s) => s.measurements);
+  const selectedSize = useAvatarStore((s) => s.selectedSize);
+  const gender = useAvatarStore((s) => s.gender);
+
+  return useMemo(() => {
+    if (!garment) return undefined;
+    const fit = computeFit(garment, measurements);
+    const ref = garment.sizes.find((s) => s.label === fit.recommended);
+    const active = garment.sizes.find(
+      (s) => s.label === (selectedSize ?? fit.recommended),
+    );
+    if (!ref || !active) return undefined;
+    const clamp = (v: number, lo: number, hi: number) =>
+      Math.max(lo, Math.min(hi, v));
+    const girth = clamp(active.garment.chest / ref.garment.chest, 0.9, 1.18);
+    const length = clamp(
+      (active.garment.length ?? 1) / (ref.garment.length ?? 1),
+      0.94,
+      1.12,
+    );
+    const pivotY = gender === "male" ? 1.45 : 1.36; // высота плеч, м
+    return { girth, length, pivotY };
+  }, [garment, measurements, selectedSize, gender]);
+}
+
 /** Сцена: свет, тело и базовая одежда (верх + шорты) выбранного пола. */
 export function AvatarScene() {
   const showClothing = useAvatarStore((s) => s.showClothing);
   const gender = useAvatarStore((s) => s.gender);
+  const topScale = useTopSizeScale();
   const u = urls(gender);
   return (
     <group>
@@ -146,7 +186,9 @@ export function AvatarScene() {
         />
       </directionalLight>
       <MorphedModel key={`${gender}-body`} url={u.body} skin />
-      {showClothing && <MorphedModel key={`${gender}-top`} url={u.top} />}
+      {showClothing && (
+        <MorphedModel key={`${gender}-top`} url={u.top} sizeScale={topScale} />
+      )}
       {showClothing && <MorphedModel key={`${gender}-shorts`} url={u.shorts} />}
     </group>
   );

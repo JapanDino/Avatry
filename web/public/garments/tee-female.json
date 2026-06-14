@@ -1,0 +1,17 @@
+{
+  "id": "tee-basic-female",
+  "title": "Базовая футболка",
+  "type": "tshirt",
+  "gender": "female",
+  "fit": "oversize",
+  "elasticity": 0.15,
+  "glb": "/models/top_female.glb",
+  "_source": "Обхваты изделия = центр диапазона тела по EN 13402-3 (жен., грудь) + проектный припуск oversize +18 см. Талия = грудь−2, бёдра = грудь (прямой крой футболки).",
+  "sizes": [
+    { "label": "XS", "garment": { "chest": 96, "waist": 94, "hips": 96, "length": 60, "sleeve": 18 } },
+    { "label": "S", "garment": { "chest": 104, "waist": 102, "hips": 104, "length": 62, "sleeve": 19 } },
+    { "label": "M", "garment": { "chest": 112, "waist": 110, "hips": 112, "length": 64, "sleeve": 20 } },
+    { "label": "L", "garment": { "chest": 120, "waist": 118, "hips": 120, "length": 66, "sleeve": 21 } },
+    { "label": "XL", "garment": { "chest": 131, "waist": 129, "hips": 131, "length": 68, "sleeve": 22 } }
+  ]
+}

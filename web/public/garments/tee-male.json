@@ -1,0 +1,17 @@
+{
+  "id": "tee-basic-male",
+  "title": "Базовая футболка",
+  "type": "tshirt",
+  "gender": "male",
+  "fit": "oversize",
+  "elasticity": 0.15,
+  "glb": "/models/top_male.glb",
+  "_source": "Обхваты изделия = центр диапазона тела по EN 13402-3 (муж., грудь) + проектный припуск oversize +18 см. Талия = грудь−2, бёдра = грудь (прямой крой футболки).",
+  "sizes": [
+    { "label": "XS", "garment": { "chest": 100, "waist": 98, "hips": 100, "length": 68, "sleeve": 21 } },
+    { "label": "S", "garment": { "chest": 108, "waist": 106, "hips": 108, "length": 70, "sleeve": 22 } },
+    { "label": "M", "garment": { "chest": 116, "waist": 114, "hips": 116, "length": 72, "sleeve": 23 } },
+    { "label": "L", "garment": { "chest": 124, "waist": 122, "hips": 124, "length": 74, "sleeve": 24 } },
+    { "label": "XL", "garment": { "chest": 132, "waist": 130, "hips": 132, "length": 76, "sleeve": 25 } }
+  ]
+}
