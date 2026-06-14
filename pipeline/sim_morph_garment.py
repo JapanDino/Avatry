@@ -39,8 +39,9 @@ import morphs  # noqa: E402
 from bl_ext.blender_org.mpfb.services.humanservice import HumanService  # noqa: E402
 
 PIN_BAND = 0.04      # верхний поясок (м), приколотый к плечам
-SIM_FRAMES = 70
-SUBDIV = 1
+SIM_FRAMES = 95      # больше кадров — ткань успевает осесть складками
+SUBDIV = 1           # плотность меша (subdiv 2 + толщина + 10 морфов превышают бюджет GLB)
+THICKNESS = 0.006    # толщина ткани (Solidify), м
 
 
 def _args(argv: list[str]) -> dict:
@@ -87,11 +88,25 @@ def _load_garment_mesh(mhclo: str, gender: str) -> bpy.types.Object:
 
 
 def _inflate(obj: bpy.types.Object, ease: float) -> None:
-    """Раздуть меш наружу по нормали на ease — даёт свободный крой (припуск)."""
+    """Раздуть меш наружу по нормали на ease — припуск ткани.
+
+    С вертикальным затуханием: у плеч/ворота 0 (вещь садится на тело), нарастает
+    к низу. Иначе пин держит раздутый верх над плечами — футболка «парит».
+    """
     obj.data.calc_loop_triangles()
     normals = [v.normal.copy() for v in obj.data.vertices]
+    zs = [v.co.z for v in obj.data.vertices]
+    zmax, zmin = max(zs), min(zs)
+    span = (zmax - zmin) or 1e-6
+
+    # плавный (smoothstep) переход от 0 у плеч/груди к полному раздуву ниже груди —
+    # без резкой границы у пройм, которая давала сборку на плечах
+    lo, hi = 0.18, 0.55  # t=(zmax-z)/span: <0.18 плечи+грудь по телу, >0.55 полный припуск
     for i, v in enumerate(obj.data.vertices):
-        v.co = v.co + normals[i] * ease
+        t = (zmax - v.co.z) / span
+        u = max(0.0, min(1.0, (t - lo) / (hi - lo)))
+        factor = u * u * (3.0 - 2.0 * u)  # smoothstep
+        v.co = v.co + normals[i] * ease * factor
     obj.data.update()
 
 
@@ -100,6 +115,16 @@ def _apply_subdiv(obj: bpy.types.Object, levels: int) -> None:
         return
     mod = obj.modifiers.new("Subsurf", "SUBSURF")
     mod.levels = mod.render_levels = levels
+    with bpy.context.temp_override(object=obj, active_object=obj):
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+
+
+def _apply_solidify(obj: bpy.types.Object, thickness: float) -> None:
+    """Придать ткани толщину (края подола/рукавов перестают быть бумажными).
+    Применяется до запекания морфов (пока нет shape keys)."""
+    mod = obj.modifiers.new("Solidify", "SOLIDIFY")
+    mod.thickness = thickness
+    mod.offset = -1.0  # наращиваем внутрь, видимая внешняя поверхность не меняется
     with bpy.context.temp_override(object=obj, active_object=obj):
         bpy.ops.object.modifier_apply(modifier=mod.name)
 
@@ -149,16 +174,18 @@ def _simulate(garment: bpy.types.Object, start: list[Vector], pin: str) -> list[
         garment.modifiers.remove(mod)
     cm = garment.modifiers.new("Cloth", "CLOTH")
     s = cm.settings
-    s.quality = 8
+    s.quality = 12
     s.mass = 0.3
-    s.tension_stiffness = 15
-    s.compression_stiffness = 15
-    s.shear_stiffness = 5
-    s.bending_stiffness = 0.4
+    s.air_damping = 1.6          # мягче падение, меньше «хлопков»
+    s.tension_stiffness = 30     # держит форму, не растягивается в валики
+    s.compression_stiffness = 30  # не сминается в складки-кольца
+    s.shear_stiffness = 10
+    s.bending_stiffness = 1.5    # широкие гладкие складки, без острых сборок
     s.vertex_group_mass = pin
     s.pin_stiffness = 1.0
     cs = cm.collision_settings
-    cs.distance_min = 0.005
+    cs.distance_min = 0.004
+    # self-collision выкл.: на грубой сетке даёт мелкие комки на плечах/груди
     cs.use_self_collision = False
 
     scene = bpy.context.scene
@@ -194,35 +221,34 @@ def main():
     pin = _pin_group(garment)
 
     base_start = [v.co.copy() for v in garment.data.vertices]
-    body_basis, body_deltas = _body_morph_deltas(body)
-    nearest = _nearest_map(base_start, body_basis)
-
-    def start_for(morph: str | None) -> list[Vector]:
-        if morph is None:
-            return [c.copy() for c in base_start]
-        d = body_deltas[morph]
-        return [base_start[i] + d[nearest[i]] for i in range(len(base_start))]
 
     # Basis = реальная нейтральная драпировка (одна cloth-симуляция → свободный крой).
     _set_body_morph(body, None)
-    neutral = _simulate(garment, start_for(None), pin)
+    neutral = _simulate(garment, base_start, pin)
     print("SIM neutral done")
+    for i, co in enumerate(neutral):
+        garment.data.vertices[i].co = co
+    garment.data.update()
+
+    # Толщина ткани — пока нет shape keys (Solidify меняет число вершин).
+    _apply_solidify(garment, THICKNESS)
+
+    # Морфы — ЛИНЕЙНЫЙ перенос дельт тела по ближайшей вершине тела (чисто
+    # блендится, без взрывов на комбинациях). Ближайшие считаем уже по
+    # утолщённому мешу. Per-morph симуляция даёт нелинейные дельты, рвущие меш
+    # при сложении — поэтому не используется (см. DECISIONS).
+    body_basis, body_deltas = _body_morph_deltas(body)
+    cloth_co = [v.co.copy() for v in garment.data.vertices]
+    nearest = _nearest_map(cloth_co, body_basis)
 
     garment.shape_key_add(name="Basis", from_mix=False)
     gb = garment.data.shape_keys.key_blocks["Basis"].data
-    for i, co in enumerate(neutral):
-        gb[i].co = co
-        garment.data.vertices[i].co = co
-
-    # Морфы — ЛИНЕЙНЫЙ перенос дельт тела по ближайшей вершине (чисто блендится,
-    # без взрывов на комбинациях). Симуляция per-morph даёт нелинейные дельты,
-    # которые рвут меш при сложении — поэтому здесь не используется (см. DECISIONS).
     for m in morphs.BODY_MORPHS_ACTIVE:
         if m not in body_deltas:
             continue
         d = body_deltas[m]
         skb = garment.shape_key_add(name=m, from_mix=False)
-        for i in range(len(base_start)):
+        for i in range(len(cloth_co)):
             skb.data[i].co = gb[i].co + d[nearest[i]]
         print(f"morph {m} baked (nearest)")
 

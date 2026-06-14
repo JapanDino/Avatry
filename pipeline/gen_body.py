@@ -64,7 +64,8 @@ def neutral_macro(gender: str) -> dict:
         m["cupsize"] = 0.0
     else:  # female
         m["gender"] = 0.1
-        m["cupsize"] = 0.55
+        m["cupsize"] = 0.35  # скромнее/натуральнее при среднем обхвате; обхват груди увеличивает
+        m["firmness"] = 0.45
     return m
 
 
