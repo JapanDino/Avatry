@@ -8,12 +8,23 @@ SMPL/SMPL-X запрещены (некоммерческая лицензия).
 |------|-----|----------|----------|------|------------|
 | `clothes/elvs_crude_t-shirt_male/` | Одежда (футболка, MHCLO) | MakeHuman community, асет-пак `shirts01` (`files2.makehumancommunity.org/asset_packs/shirts01/shirts01_cc0.zip`), автор Elvaerwyn | **CC0** | 2026-06-12 | Базовая футболка под меш MakeHuman. Примеряется через MPFB `add_mhclo_asset`, морфы переносятся по ближайшей вершине (`pipeline/gen_mhclo_garment.py`) |
 
+| `textures/cotton_jersey/` | Текстура ткани (diffuse/normal/roughness, 1K) | Poly Haven `cotton_jersey` | **CC0** | 2026-06-13 | PBR-карты трикотажа для материала одежды (`web/src/AvatarViewer.tsx`, `fabricMaterial`). Тайлятся по UV. https://polyhaven.com/a/cotton_jersey |
+
 Пак `shirts01` (CC0) содержит ещё 9 вещей (поло, танк-топы, свитер и др.) — при необходимости брать оттуда же.
 
 ## Допустимые лицензии
 
 - **CC0 1.0** — можно всё, включая коммерцию, без атрибуции. Предпочтительно.
 - Собственная генерация (наши Blender-скрипты) — наша собственность.
+
+## Источники данных (размеры, антропометрия)
+
+Не ассеты, но провенанс числовых данных — чтобы опираться на стандарты, а не на выдумку.
+
+- **EN 13402-3 / ISO 8559-1:2020** — буквенные размеры (S/M/L) как диапазоны обхвата груди/бюста. Использовано для размерных таблиц `web/public/garments/*.json` (обхват изделия = центр диапазона тела по EN + проектный припуск). Жен. (грудь, см): XS 74–82, S 82–90, M 90–98, L 98–107, XL 107–119. Муж.: XS 78–86, S 86–94, M 94–102, L 102–110, XL 110–118. Связь у женщин: талия ≈ грудь−16, бёдра ≈ грудь+8.
+  - https://en.wikipedia.org/wiki/Joint_European_standard_for_size_labelling_of_clothes · https://www.iso.org/standard/61686.html
+- **Нормы припуска (wearing ease)** по обхвату груди — основа порогов посадки в `web/src/fit.ts` (slim ~4, regular ~10, relaxed ~15, oversize ~18 см).
+- **Средние мерки тела** — CDC NHANES (США). Замечание: all-ages среднее завышено (жен. грудь ~102), у молодых (20–29) заметно меньше; для стритвир-бренда ориентир — стандартные размеры, а не all-ages среднее. https://www.cdc.gov/nchs/fastats/body-measurements.htm
 
 ## Запрещено
 
