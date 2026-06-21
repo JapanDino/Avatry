@@ -63,14 +63,57 @@ interface SizeScale {
   pivotY: number;
 }
 
+/** Цвета зон карты посадки (грудь/талия/бёдра). null = карта выключена. */
+type ZoneColors = Record<"chest" | "waist" | "hips", THREE.Color> | null;
+
+let _fitMapMat: THREE.MeshStandardMaterial | null = null;
+function fitMapMaterial(): THREE.MeshStandardMaterial {
+  if (_fitMapMat) return _fitMapMat;
+  _fitMapMat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.85,
+    metalness: 0.0,
+    envMapIntensity: 0.6,
+  });
+  return _fitMapMat;
+}
+
+/** Раскрасить вершины одежды по зонам (по высоте Y) цветами посадки. */
+function applyFitColors(mesh: THREE.Mesh, colors: ZoneColors): void {
+  const geo = mesh.geometry;
+  const pos = geo.getAttribute("position");
+  if (!pos) return;
+  let ymin = Infinity;
+  let ymax = -Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    if (y < ymin) ymin = y;
+    if (y > ymax) ymax = y;
+  }
+  const span = ymax - ymin || 1;
+  const arr = new Float32Array(pos.count * 3);
+  const tmp = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const f = (pos.getY(i) - ymin) / span; // 0 низ (бёдра), 1 верх (грудь)
+    const c = colors![f > 0.6 ? "chest" : f > 0.34 ? "waist" : "hips"];
+    tmp.copy(c);
+    arr[i * 3] = tmp.r;
+    arr[i * 3 + 1] = tmp.g;
+    arr[i * 3 + 2] = tmp.b;
+  }
+  geo.setAttribute("color", new THREE.BufferAttribute(arr, 3));
+}
+
 function MorphedModel({
   url,
   skin = false,
   sizeScale,
+  fitColors = null,
 }: {
   url: string;
   skin?: boolean;
   sizeScale?: SizeScale;
+  fitColors?: ZoneColors;
 }) {
   const { scene } = useGLTF(url);
   const morphs = useAvatarStore((s) => s.morphs);
@@ -111,6 +154,19 @@ function MorphedModel({
       }
     }
   }, [meshes, morphs]);
+
+  // карта посадки: раскраска по зонам ↔ обычная ткань
+  useEffect(() => {
+    if (skin) return;
+    for (const mesh of meshes) {
+      if (fitColors) {
+        applyFitColors(mesh, fitColors);
+        mesh.material = fitMapMaterial();
+      } else {
+        mesh.material = fabricMaterial();
+      }
+    }
+  }, [meshes, skin, fitColors]);
 
   if (sizeScale) {
     // масштаб обхвата вокруг вертикальной оси (X,Z) + длины (Y) с пивотом у плеч
@@ -163,11 +219,38 @@ function useTopSizeScale(): SizeScale | undefined {
   }, [garment, measurements, selectedSize, gender]);
 }
 
+const FIT_CLASS_COLOR = {
+  tight: new THREE.Color("#e2574c"),
+  good: new THREE.Color("#4caf6a"),
+  loose: new THREE.Color("#5b8def"),
+};
+
+/** Цвета зон карты посадки для активного размера (или null, если карта выкл.). */
+function useFitColors(): ZoneColors {
+  const garment = useAvatarStore((s) => s.garment);
+  const measurements = useAvatarStore((s) => s.measurements);
+  const selectedSize = useAvatarStore((s) => s.selectedSize);
+  const showFitMap = useAvatarStore((s) => s.showFitMap);
+
+  return useMemo(() => {
+    if (!showFitMap || !garment) return null;
+    const fit = computeFit(garment, measurements);
+    const active =
+      fit.perSize.find((s) => s.label === (selectedSize ?? fit.recommended)) ??
+      null;
+    if (!active) return null;
+    const byZone = (z: "chest" | "waist" | "hips") =>
+      FIT_CLASS_COLOR[active.zones.find((zf) => zf.zone === z)!.cls];
+    return { chest: byZone("chest"), waist: byZone("waist"), hips: byZone("hips") };
+  }, [showFitMap, garment, measurements, selectedSize]);
+}
+
 /** Сцена: свет, тело и базовая одежда (верх + шорты) выбранного пола. */
 export function AvatarScene() {
   const showClothing = useAvatarStore((s) => s.showClothing);
   const gender = useAvatarStore((s) => s.gender);
   const topScale = useTopSizeScale();
+  const fitColors = useFitColors();
   const u = urls(gender);
   return (
     <group>
@@ -187,7 +270,12 @@ export function AvatarScene() {
       </directionalLight>
       <MorphedModel key={`${gender}-body`} url={u.body} skin />
       {showClothing && (
-        <MorphedModel key={`${gender}-top`} url={u.top} sizeScale={topScale} />
+        <MorphedModel
+          key={`${gender}-top`}
+          url={u.top}
+          sizeScale={topScale}
+          fitColors={fitColors}
+        />
       )}
       {showClothing && <MorphedModel key={`${gender}-shorts`} url={u.shorts} />}
     </group>

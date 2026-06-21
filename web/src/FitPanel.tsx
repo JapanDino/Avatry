@@ -19,6 +19,8 @@ export function FitPanel() {
   const measurements = useAvatarStore((s) => s.measurements);
   const selectedSize = useAvatarStore((s) => s.selectedSize);
   const setSelectedSize = useAvatarStore((s) => s.setSelectedSize);
+  const showFitMap = useAvatarStore((s) => s.showFitMap);
+  const setShowFitMap = useAvatarStore((s) => s.setShowFitMap);
 
   const fit = useMemo(
     () => (garment ? computeFit(garment, measurements) : null),
@@ -74,6 +76,33 @@ export function FitPanel() {
             ))}
           </div>
           <div style={explain}>{fit.explanation}</div>
+
+          <label style={mapRow}>
+            <input
+              type="checkbox"
+              checked={showFitMap}
+              onChange={(e) => setShowFitMap(e.target.checked)}
+            />
+            <span>Карта посадки на модели</span>
+          </label>
+          {showFitMap && (
+            <div style={legend}>
+              {(
+                [
+                  ["tight", "тесно"],
+                  ["good", "по фигуре"],
+                  ["loose", "свободно"],
+                ] as const
+              ).map(([cls, label]) => (
+                <span key={cls} style={legendItem}>
+                  <span
+                    style={{ ...legendDot, background: CLASS_COLOR[cls] }}
+                  />
+                  {label}
+                </span>
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>
@@ -139,3 +168,21 @@ const explain: CSSProperties = {
   borderTop: "1px solid rgba(255,255,255,0.1)",
   paddingTop: 10,
 };
+const mapRow: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  marginTop: 12,
+  fontSize: 12,
+  cursor: "pointer",
+};
+const legend: CSSProperties = {
+  display: "flex",
+  gap: 10,
+  marginTop: 8,
+  fontSize: 11,
+  opacity: 0.8,
+  flexWrap: "wrap",
+};
+const legendItem: CSSProperties = { display: "flex", alignItems: "center", gap: 4 };
+const legendDot: CSSProperties = { width: 9, height: 9, borderRadius: 5 };

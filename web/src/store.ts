@@ -70,6 +70,7 @@ interface AvatarState {
   measurements: Measurements;
   morphs: Record<MorphName, number>;
   showClothing: boolean;
+  showFitMap: boolean;
   garment: Garment | null;
   selectedSize: string | null;
 
@@ -79,6 +80,7 @@ interface AvatarState {
   setMorph: (name: MorphName, value: number) => void;
   resetMeasurements: () => void;
   setShowClothing: (v: boolean) => void;
+  setShowFitMap: (v: boolean) => void;
   setGarment: (g: Garment | null) => void;
   setSelectedSize: (label: string | null) => void;
 }
@@ -98,6 +100,7 @@ export const useAvatarStore = create<AvatarState>((set) => ({
   measurements: FALLBACK_MEASUREMENTS,
   morphs: { ...ZERO },
   showClothing: true,
+  showFitMap: false,
   garment: null,
   selectedSize: null,
 
@@ -147,6 +150,7 @@ export const useAvatarStore = create<AvatarState>((set) => ({
     }),
 
   setShowClothing: (v) => set({ showClothing: v }),
+  setShowFitMap: (v) => set({ showFitMap: v }),
   setGarment: (g) => set({ garment: g, selectedSize: null }),
   setSelectedSize: (label) => set({ selectedSize: label }),
 }));
