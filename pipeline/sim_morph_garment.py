@@ -177,15 +177,16 @@ def _simulate(garment: bpy.types.Object, start: list[Vector], pin: str) -> list[
     s.quality = 12
     s.mass = 0.3
     s.air_damping = 1.6          # мягче падение, меньше «хлопков»
-    s.tension_stiffness = 30     # держит форму, не растягивается в валики
-    s.compression_stiffness = 30  # не сминается в складки-кольца
-    s.shear_stiffness = 10
-    s.bending_stiffness = 1.5    # широкие гладкие складки, без острых сборок
+    s.tension_stiffness = 40     # держит форму, не растягивается в валики
+    s.compression_stiffness = 40  # не сминается в складки-кольца
+    s.shear_stiffness = 15
+    s.bending_stiffness = 3.5    # почти гладкая драпировка, без локальных сборок
     s.vertex_group_mass = pin
     s.pin_stiffness = 1.0
     cs = cm.collision_settings
-    cs.distance_min = 0.004
-    # self-collision выкл.: на грубой сетке даёт мелкие комки на плечах/груди
+    # больший зазор: ткань мягко перекрывает вогнутости (поясница, под грудью),
+    # а не собирается в них складками
+    cs.distance_min = 0.008
     cs.use_self_collision = False
 
     scene = bpy.context.scene
