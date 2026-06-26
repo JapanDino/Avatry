@@ -6,11 +6,10 @@ import { computeFit } from "./fit";
 
 import type { Gender } from "./calibration";
 
-const urls = (gender: Gender) => ({
-  body: `/models/body_${gender}.glb`,
-  top: `/models/top_${gender}.glb`,
-  shorts: `/models/shorts_${gender}.glb`,
-});
+const bodyUrl = (g: Gender) => `/models/body_${g}.glb`;
+const shortsUrl = (g: Gender) => `/models/shorts_${g}.glb`;
+// верх — отдельный меш на размер (реальная посадка S/M/L), а не масштаб одного
+const topUrl = (g: Gender, size: string) => `/models/top_${g}_${size}.glb`;
 
 /**
  * CC0-текстуры ткани (cotton_jersey, Poly Haven): diffuse + normal + roughness.
@@ -181,18 +180,27 @@ function MorphedModel({
 }
 
 for (const g of ["female", "male"] as Gender[]) {
-  const u = urls(g);
-  useGLTF.preload(u.body);
-  useGLTF.preload(u.top);
-  useGLTF.preload(u.shorts);
+  useGLTF.preload(bodyUrl(g));
+  useGLTF.preload(shortsUrl(g));
+}
+
+/** Активный размер: выбранный пользователем или рекомендованный. */
+function useActiveSize(): string | null {
+  const garment = useAvatarStore((s) => s.garment);
+  const measurements = useAvatarStore((s) => s.measurements);
+  const selectedSize = useAvatarStore((s) => s.selectedSize);
+  return useMemo(() => {
+    if (!garment) return null;
+    if (selectedSize) return selectedSize;
+    return computeFit(garment, measurements).recommended;
+  }, [garment, measurements, selectedSize]);
 }
 
 /**
- * Масштаб верха под выбранный размер относительно рекомендованного: больше размер
- * → шире/длиннее (свободнее), меньше → ближе к телу. Так 3D-вещь меняется при
- * смене размера, хотя GLB один (полноценные per-size меши — задача 4.3).
+ * Доп. масштаб длины верха по размеру (обхват уже реальный в per-size GLB —
+ * задача 4.3). Длина варьируется немного по размерной таблице.
  */
-function useTopSizeScale(): SizeScale | undefined {
+function useTopLengthScale(): SizeScale | undefined {
   const garment = useAvatarStore((s) => s.garment);
   const measurements = useAvatarStore((s) => s.measurements);
   const selectedSize = useAvatarStore((s) => s.selectedSize);
@@ -201,21 +209,20 @@ function useTopSizeScale(): SizeScale | undefined {
   return useMemo(() => {
     if (!garment) return undefined;
     const fit = computeFit(garment, measurements);
-    const ref = garment.sizes.find((s) => s.label === fit.recommended);
+    const mid = garment.sizes[Math.floor(garment.sizes.length / 2)];
     const active = garment.sizes.find(
       (s) => s.label === (selectedSize ?? fit.recommended),
     );
-    if (!ref || !active) return undefined;
+    if (!active || !mid) return undefined;
     const clamp = (v: number, lo: number, hi: number) =>
       Math.max(lo, Math.min(hi, v));
-    const girth = clamp(active.garment.chest / ref.garment.chest, 0.9, 1.18);
     const length = clamp(
-      (active.garment.length ?? 1) / (ref.garment.length ?? 1),
+      (active.garment.length ?? 1) / (mid.garment.length ?? 1),
       0.94,
-      1.12,
+      1.1,
     );
-    const pivotY = gender === "male" ? 1.45 : 1.36; // высота плеч, м
-    return { girth, length, pivotY };
+    const pivotY = gender === "male" ? 1.45 : 1.36;
+    return { girth: 1, length, pivotY };
   }, [garment, measurements, selectedSize, gender]);
 }
 
@@ -245,13 +252,23 @@ function useFitColors(): ZoneColors {
   }, [showFitMap, garment, measurements, selectedSize]);
 }
 
-/** Сцена: свет, тело и базовая одежда (верх + шорты) выбранного пола. */
+/** Сцена: свет, тело и базовая одежда (верх по размеру + шорты) выбранного пола. */
 export function AvatarScene() {
   const showClothing = useAvatarStore((s) => s.showClothing);
   const gender = useAvatarStore((s) => s.gender);
-  const topScale = useTopSizeScale();
+  const garment = useAvatarStore((s) => s.garment);
+  const topScale = useTopLengthScale();
   const fitColors = useFitColors();
-  const u = urls(gender);
+  const activeSize = useActiveSize();
+
+  // префетч всех размеров текущего пола — смена размера мгновенная
+  useEffect(() => {
+    if (!garment) return;
+    for (const s of garment.sizes) useGLTF.preload(topUrl(gender, s.label));
+  }, [garment, gender]);
+
+  const topSrc = activeSize ? topUrl(gender, activeSize) : null;
+
   return (
     <group>
       {/* окружение (Environment) даёт мягкий заполняющий свет; добавляем ключевой
@@ -268,16 +285,18 @@ export function AvatarScene() {
           args={[-1.5, 1.5, 2.2, -0.2, 0.1, 12]}
         />
       </directionalLight>
-      <MorphedModel key={`${gender}-body`} url={u.body} skin />
-      {showClothing && (
+      <MorphedModel key={`${gender}-body`} url={bodyUrl(gender)} skin />
+      {showClothing && topSrc && (
         <MorphedModel
-          key={`${gender}-top`}
-          url={u.top}
+          key={`${gender}-${activeSize}-top`}
+          url={topSrc}
           sizeScale={topScale}
           fitColors={fitColors}
         />
       )}
-      {showClothing && <MorphedModel key={`${gender}-shorts`} url={u.shorts} />}
+      {showClothing && (
+        <MorphedModel key={`${gender}-shorts`} url={shortsUrl(gender)} />
+      )}
     </group>
   );
 }
