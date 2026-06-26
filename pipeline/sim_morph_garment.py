@@ -119,6 +119,16 @@ def _apply_subdiv(obj: bpy.types.Object, levels: int) -> None:
         bpy.ops.object.modifier_apply(modifier=mod.name)
 
 
+def _smooth(obj: bpy.types.Object, factor: float, iterations: int) -> None:
+    """Разгладить мелкие cloth-складки (до Solidify и до shape keys).
+    Умеренные параметры: убирает messy-сборки, сохраняя крупную драпировку."""
+    mod = obj.modifiers.new("Smooth", "SMOOTH")
+    mod.factor = factor
+    mod.iterations = iterations
+    with bpy.context.temp_override(object=obj, active_object=obj):
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+
+
 def _apply_solidify(obj: bpy.types.Object, thickness: float) -> None:
     """Придать ткани толщину (края подола/рукавов перестают быть бумажными).
     Применяется до запекания морфов (пока нет shape keys)."""
@@ -231,7 +241,8 @@ def main():
         garment.data.vertices[i].co = co
     garment.data.update()
 
-    # Толщина ткани — пока нет shape keys (Solidify меняет число вершин).
+    # Разгладить мелкие складки, затем придать толщину (до shape keys).
+    _smooth(garment, factor=0.6, iterations=12)
     _apply_solidify(garment, THICKNESS)
 
     # Морфы — ЛИНЕЙНЫЙ перенос дельт тела по ближайшей вершине тела (чисто
