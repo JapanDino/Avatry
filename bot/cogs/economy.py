@@ -139,10 +139,51 @@ async def extend_boost(db, guild_id: int, user_id: int, kind: str, duration: int
 class Economy(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self._catalog_seeded_guilds: set[int] = set()
         self.temp_role_check.start()
 
     async def cog_unload(self) -> None:
         self.temp_role_check.cancel()
+
+    async def _import_default_catalog(self, guild_id: int, *, overwrite: bool = False) -> tuple[int, int, int]:
+        created = 0
+        updated = 0
+        skipped = 0
+        for key, name, description, price, category, delivery in SHOP_CATALOG:
+            _, was_created, was_updated = await self.bot.db.shop_catalog_upsert(
+                guild_id,
+                catalog_key=key,
+                name=name,
+                description=description,
+                price=price,
+                category=category,
+                delivery_type=delivery,
+                overwrite=overwrite,
+            )
+            if was_created:
+                created += 1
+            elif was_updated:
+                updated += 1
+            else:
+                skipped += 1
+        return created, updated, skipped
+
+    async def _ensure_default_catalog(self, guild_id: int) -> None:
+        if guild_id in self._catalog_seeded_guilds:
+            return
+        existing = await self.bot.db.shop_list(guild_id, include_inactive=True)
+        if not existing:
+            await self._import_default_catalog(guild_id)
+        self._catalog_seeded_guilds.add(guild_id)
+
+    @commands.Cog.listener()
+    async def on_ready(self) -> None:
+        for guild in self.bot.guilds:
+            await self._ensure_default_catalog(guild.id)
+
+    @commands.Cog.listener()
+    async def on_guild_join(self, guild: discord.Guild) -> None:
+        await self._ensure_default_catalog(guild.id)
 
     @tasks.loop(minutes=1)
     async def temp_role_check(self) -> None:
@@ -897,26 +938,7 @@ class Economy(commands.Cog):
     @app_commands.describe(overwrite="Обновить уже импортированные товары ценами/описаниями из каталога?")
     @admin_check()
     async def eco_catalog_import(self, ctx: commands.Context, overwrite: bool = False) -> None:
-        created = 0
-        updated = 0
-        skipped = 0
-        for key, name, description, price, category, delivery in SHOP_CATALOG:
-            _, was_created, was_updated = await self.bot.db.shop_catalog_upsert(
-                ctx.guild.id,
-                catalog_key=key,
-                name=name,
-                description=description,
-                price=price,
-                category=category,
-                delivery_type=delivery,
-                overwrite=overwrite,
-            )
-            if was_created:
-                created += 1
-            elif was_updated:
-                updated += 1
-            else:
-                skipped += 1
+        created, updated, skipped = await self._import_default_catalog(ctx.guild.id, overwrite=overwrite)
         await ctx.reply(embed=embeds.success(
             f"Каталог магазина синхронизирован: добавлено `{created}`, обновлено `{updated}`, пропущено `{skipped}`.\n"
             "Категории: `kami`, `appearance`, `operations`, `accessories`."
