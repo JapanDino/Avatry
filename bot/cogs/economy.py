@@ -148,7 +148,9 @@ class Economy(commands.Cog):
     async def cog_unload(self) -> None:
         self.temp_role_check.cancel()
 
-    async def _import_default_catalog(self, guild_id: int, *, overwrite: bool = False) -> tuple[int, int, int]:
+    async def _import_default_catalog(
+        self, guild_id: int, *, overwrite: bool = False, activate: bool = False
+    ) -> tuple[int, int, int]:
         created = 0
         updated = 0
         skipped = 0
@@ -162,6 +164,7 @@ class Economy(commands.Cog):
                 category=category,
                 delivery_type=delivery,
                 overwrite=overwrite,
+                activate=activate,
             )
             if was_created:
                 created += 1
@@ -174,12 +177,11 @@ class Economy(commands.Cog):
     async def _ensure_default_catalog(self, guild_id: int) -> None:
         if guild_id in self._catalog_seeded_guilds:
             return
-        created, updated, skipped = await self._import_default_catalog(guild_id)
-        if created or updated:
-            log.info(
-                "Default shop catalog synced for guild %s: created=%s updated=%s skipped=%s",
-                guild_id, created, updated, skipped,
-            )
+        created, updated, skipped = await self._import_default_catalog(guild_id, activate=True)
+        log.info(
+            "Default shop catalog synced for guild %s: created=%s updated=%s skipped=%s",
+            guild_id, created, updated, skipped,
+        )
         self._catalog_seeded_guilds.add(guild_id)
 
     @commands.Cog.listener()
@@ -945,7 +947,9 @@ class Economy(commands.Cog):
     @app_commands.describe(overwrite="Обновить уже импортированные товары ценами/описаниями из каталога?")
     @admin_check()
     async def eco_catalog_import(self, ctx: commands.Context, overwrite: bool = False) -> None:
-        created, updated, skipped = await self._import_default_catalog(ctx.guild.id, overwrite=overwrite)
+        created, updated, skipped = await self._import_default_catalog(
+            ctx.guild.id, overwrite=overwrite, activate=True
+        )
         await ctx.reply(embed=embeds.success(
             f"Каталог магазина синхронизирован: добавлено `{created}`, обновлено `{updated}`, пропущено `{skipped}`.\n"
             "Категории: `kami`, `appearance`, `operations`, `accessories`."

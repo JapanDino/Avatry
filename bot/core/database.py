@@ -2376,6 +2376,7 @@ class Database:
         category: str,
         delivery_type: str,
         overwrite: bool = False,
+        activate: bool = False,
     ) -> tuple[int, bool, bool]:
         async with self.conn.execute(
             "SELECT * FROM shop_items WHERE guild_id = ? AND catalog_key = ?",
@@ -2399,8 +2400,18 @@ class Database:
         if overwrite:
             await self.conn.execute(
                 "UPDATE shop_items SET name = ?, description = ?, price = ?, category = ?, "
-                "item_type = ?, delivery_type = ? WHERE guild_id = ? AND id = ?",
-                (name, description, price, category, delivery_type, delivery_type, guild_id, row["id"]),
+                "item_type = ?, delivery_type = ?, active = ? WHERE guild_id = ? AND id = ?",
+                (
+                    name, description, price, category, delivery_type, delivery_type,
+                    1 if activate else row["active"], guild_id, row["id"],
+                ),
+            )
+            await self.conn.commit()
+            return int(row["id"]), False, True
+        if activate and not row["active"]:
+            await self.conn.execute(
+                "UPDATE shop_items SET active = 1 WHERE guild_id = ? AND id = ?",
+                (guild_id, row["id"]),
             )
             await self.conn.commit()
             return int(row["id"]), False, True
