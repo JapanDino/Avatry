@@ -16,6 +16,7 @@ from core.rankcard import (
     _FONT_BOLD_CANDIDATES,
     _FONT_CANDIDATES,
     _circle,
+    _fit_text,
     _font,
     _rounded,
 )
@@ -66,9 +67,10 @@ def _welcome(avatar_bytes, name, member_no, guild_name, accent) -> bytes:
         draw.text(((W - w) / 2, y), text, font=font, fill=fill)
 
     center("Добро пожаловать!", f_big, ay + av + 22, TEXT)
-    disp = name if len(name) <= 24 else name[:23] + "…"
+    disp = _fit_text(draw, name, f_name, W - 100)
     center(disp, f_name, ay + av + 86, accent)
-    center(f"Ты {member_no}-й участник {guild_name}"[:60], f_small, ay + av + 140, MUTED)
+    member_line = _fit_text(draw, f"Ты {member_no}-й участник {guild_name}", f_small, W - 100)
+    center(member_line, f_small, ay + av + 140, MUTED)
     buf = io.BytesIO()
     img.convert("RGB").save(buf, "PNG")
     return buf.getvalue()
@@ -102,7 +104,10 @@ def _balance(avatar_bytes, name, wallet, bank, rank, currency, accent) -> bytes:
     draw.text((ax, ay + av + 14), f"#{rank} в топе", font=f_small, fill=MUTED)
 
     tx = ax + av + 45
-    disp = name if len(name) <= 18 else name[:17] + "…"
+    total = wallet + bank
+    tot = f"Всего: {_num(total)} {currency}"
+    total_w = draw.textlength(tot, font=f_small)
+    disp = _fit_text(draw, name, f_name, int(W - 50 - total_w - 28 - tx))
     draw.text((tx, 45), disp, font=f_name, fill=TEXT)
 
     def money(label, value, y, color):
@@ -114,8 +119,6 @@ def _balance(avatar_bytes, name, wallet, bank, rank, currency, accent) -> bytes:
 
     money("Кошелёк", wallet, 115, accent)
     money("Банк", bank, 195, (120, 200, 140))
-    total = wallet + bank
-    tot = f"Всего: {_num(total)} {currency}"
     draw.text((W - 50 - draw.textlength(tot, font=f_small), 60), tot, font=f_small, fill=MUTED)
 
     buf = io.BytesIO()
@@ -145,8 +148,10 @@ def _leaderboard(title, subtitle, entries, accent) -> bytes:
     f_name = _font(_FONT_BOLD_CANDIDATES, 30)
     f_val = _font(_FONT_CANDIDATES, 28)
 
+    title = _fit_text(draw, title, f_title, W - 80)
     draw.text((40, 36), title, font=f_title, fill=TEXT)
     if subtitle:
+        subtitle = _fit_text(draw, subtitle, f_sub, W - 80)
         draw.text((40, 86), subtitle, font=f_sub, fill=MUTED)
 
     medals = {1: GOLD, 2: SILVER, 3: BRONZE}
@@ -157,7 +162,8 @@ def _leaderboard(title, subtitle, entries, accent) -> bytes:
         draw.text((52, y + 18), f"#{rank}", font=f_rank, fill=color)
         asize = 48
         _avatar_or_circle(draw, img, av_bytes, 120, y + 7, asize, color)
-        disp = name if len(name) <= 22 else name[:21] + "…"
+        value_width = draw.textlength(value, font=f_val)
+        disp = _fit_text(draw, name, f_name, int(W - 60 - value_width - 34 - 190))
         draw.text((190, y + 18), disp, font=f_name, fill=TEXT)
         draw.text((W - 60 - draw.textlength(value, font=f_val), y + 20), value, font=f_val, fill=accent)
         y += row_h

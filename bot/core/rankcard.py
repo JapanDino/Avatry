@@ -54,6 +54,16 @@ def _rounded(draw: ImageDraw.ImageDraw, box, radius, fill) -> None:
     draw.rounded_rectangle(box, radius=radius, fill=fill)
 
 
+def _fit_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, max_width: int) -> str:
+    text = str(text)
+    if max_width <= 0 or draw.textlength(text, font=font) <= max_width:
+        return text
+    ellipsis = "…"
+    while text and draw.textlength(text + ellipsis, font=font) > max_width:
+        text = text[:-1]
+    return f"{text}{ellipsis}" if text else ellipsis
+
+
 def _render(avatar_bytes: Optional[bytes], name: str, level: int, rank: int,
             into: int, need: int, total_xp: int, accent: tuple,
             bg: Optional[tuple] = None) -> bytes:
@@ -84,12 +94,10 @@ def _render(avatar_bytes: Optional[bytes], name: str, level: int, rank: int,
         draw.ellipse((ax, ay, ax + av_size, ay + av_size), fill=track_color)
 
     tx = ax + av_size + 40
-    # Name (truncate to fit).
-    display = name
-    while draw.textlength(display, font=f_big) > 420 and len(display) > 3:
-        display = display[:-2]
-    if display != name:
-        display += "…"
+    # Name (truncate to fit beside the level/rank block).
+    level_width = max(draw.textlength(f"LEVEL {level}", font=f_mid), draw.textlength(f"#{rank}", font=f_small))
+    name_max_width = int(W - 60 - level_width - 34 - tx)
+    display = _fit_text(draw, name, f_big, name_max_width)
     draw.text((tx, 55), display, font=f_big, fill=TEXT)
 
     # Rank / Level on the right.
