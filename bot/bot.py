@@ -319,6 +319,7 @@ class SamuraiBot(commands.Bot):
 
 
 async def main() -> None:
+    log.warning("Starting K2-SO build marker: %s", version.BUILD_MARKER)
     if not config.DISCORD_TOKEN:
         log.error("DISCORD_TOKEN is not set. Copy .env.example to .env and fill it in.")
         sys.exit(1)
