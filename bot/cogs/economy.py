@@ -351,6 +351,8 @@ class Economy(commands.Cog):
             await self.bot.db.shop_inventory_add(
                 guild.id, member.id, item["id"], delivery, item["name"], metadata=item["description"]
             )
+            if item["catalog_key"] in APPEARANCE_NAMES:
+                await self.bot.db.econ_update(guild.id, member.id, active_banner=item["catalog_key"])
         elif delivery == "manual":
             request_id = await self.bot.db.shop_request_create(
                 guild.id, member.id, item["id"], item["name"], price=int(item["price"]),
@@ -378,6 +380,8 @@ class Economy(commands.Cog):
                     f"Списано {fmt_shop(item['price'])} админ-валюты.")
         elif delivery == "inventory":
             text = f"Куплено: **{item['name']}**. Товар добавлен в `/inventory`. Списано {fmt_shop(item['price'])} админ-валюты."
+            if item["catalog_key"] in APPEARANCE_NAMES:
+                text += " Фон профиля применён."
         else:
             text = f"Куплено: **{item['name']}** → {role.mention}{suffix}. Списано {fmt_shop(item['price'])} админ-валюты."
         return embeds.success(text)
@@ -1227,6 +1231,13 @@ APPEARANCE_NAMES = {
     "priroda_banner": "Дух природы",
     "katana_banner": "Клинок самурая",
 }
+APPEARANCE_THEMES = {
+    "weapon_banner": ((36, 42, 52), (116, 124, 132), (185, 190, 196)),
+    "auto_banner": ((18, 22, 36), (28, 92, 150), (235, 80, 95)),
+    "meow_banner": ((42, 28, 48), (180, 98, 160), (250, 190, 220)),
+    "priroda_banner": ((20, 42, 32), (46, 130, 82), (160, 220, 150)),
+    "katana_banner": ((36, 24, 28), (142, 36, 52), (235, 210, 170)),
+}
 
 
 def _parse_amt(text: Optional[str], maximum: int) -> Optional[int]:
@@ -1247,8 +1258,34 @@ def _banner_bytes(key: Optional[str]) -> Optional[bytes]:
         return None
     p = _BANNER_DIR / f"{key}.png"
     try:
-        return p.read_bytes() if p.exists() else None
+        if p.exists():
+            return p.read_bytes()
     except OSError:
+        pass
+    if key not in APPEARANCE_THEMES:
+        return None
+    try:
+        from PIL import Image, ImageDraw
+
+        w, h = 900, 320
+        start, end, accent = APPEARANCE_THEMES[key]
+        img = Image.new("RGBA", (w, h), start)
+        draw = ImageDraw.Draw(img, "RGBA")
+        for y in range(h):
+            t = y / max(1, h - 1)
+            color = tuple(int(start[i] + (end[i] - start[i]) * t) for i in range(3))
+            draw.line((0, y, w, y), fill=color)
+        for i in range(-120, w + 240, 170):
+            draw.polygon(
+                [(i, h), (i + 90, h), (i + 250, 0), (i + 160, 0)],
+                fill=(*accent, 38),
+            )
+        for i in range(0, w, 130):
+            draw.line((i, h, i + 220, 0), fill=(*accent, 55), width=3)
+        buf = io.BytesIO()
+        img.convert("RGB").save(buf, format="PNG")
+        return buf.getvalue()
+    except Exception:
         return None
 
 
