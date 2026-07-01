@@ -382,6 +382,7 @@ class Economy(commands.Cog):
         if not await self._enabled(ctx):
             return
         cfg = await self.bot.db.get_econ_config(ctx.guild.id)
+        await self._ensure_default_catalog(ctx.guild.id)
         items = await self.bot.db.shop_list(ctx.guild.id, category=category)
         if not items:
             suffix = f" в категории `{category}`" if category else ""
@@ -1324,6 +1325,8 @@ class AdminProfileView(discord.ui.View):
     @discord.ui.button(label="Магазин", emoji="🛒", style=discord.ButtonStyle.secondary)
     async def shop(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
         cog = interaction.client.get_cog("Economy")
+        if cog:
+            await cog._ensure_default_catalog(interaction.guild_id)
         items = await interaction.client.db.shop_list(interaction.guild_id)
         cats = sort_categories({it["category"] for it in items if it["category"]})
         if not cats:
