@@ -3,6 +3,7 @@ plus the reference shop gameplay — safe, jail/СИЗО, steal, and a profile c
 from __future__ import annotations
 
 import io
+import logging
 import random
 import time
 from typing import Optional
@@ -13,6 +14,8 @@ from discord.ext import commands, tasks
 
 from core import banners, embeds
 from core.permissions import is_admin_access, requires_hybrid
+
+log = logging.getLogger("samurai.economy")
 
 
 def admin_check():
@@ -171,9 +174,12 @@ class Economy(commands.Cog):
     async def _ensure_default_catalog(self, guild_id: int) -> None:
         if guild_id in self._catalog_seeded_guilds:
             return
-        existing = await self.bot.db.shop_list(guild_id, include_inactive=True)
-        if not existing:
-            await self._import_default_catalog(guild_id)
+        created, updated, skipped = await self._import_default_catalog(guild_id)
+        if created or updated:
+            log.info(
+                "Default shop catalog synced for guild %s: created=%s updated=%s skipped=%s",
+                guild_id, created, updated, skipped,
+            )
         self._catalog_seeded_guilds.add(guild_id)
 
     @commands.Cog.listener()
