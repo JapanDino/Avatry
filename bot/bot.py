@@ -25,6 +25,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
 )
 log = logging.getLogger("samurai")
+BUILD_MARKER = "profile-bg-diagnostics-2026-07-02"
 
 INITIAL_EXTENSIONS = (
     "cogs.config_cog",
@@ -75,6 +76,7 @@ class SamuraiBot(commands.Bot):
     async def setup_hook(self) -> None:
         await self.db.connect()
         log.info("Database ready at %s", config.DATABASE_PATH)
+        log.info("Build marker: %s", BUILD_MARKER)
 
         for ext in INITIAL_EXTENSIONS:
             try:

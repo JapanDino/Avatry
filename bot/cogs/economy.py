@@ -1253,17 +1253,17 @@ def _parse_amt(text: Optional[str], maximum: int) -> Optional[int]:
     return None
 
 
-def _banner_bytes(key: Optional[str]) -> Optional[bytes]:
+def _banner_payload(key: Optional[str]) -> tuple[Optional[bytes], str]:
     if not key:
-        return None
+        return None, "default"
     p = _BANNER_DIR / f"{key}.png"
     try:
         if p.exists():
-            return p.read_bytes()
+            return p.read_bytes(), "asset"
     except OSError:
         pass
     if key not in APPEARANCE_THEMES:
-        return None
+        return None, "missing"
     try:
         from PIL import Image, ImageDraw
 
@@ -1284,9 +1284,14 @@ def _banner_bytes(key: Optional[str]) -> Optional[bytes]:
             draw.line((i, h, i + 220, 0), fill=(*accent, 55), width=3)
         buf = io.BytesIO()
         img.convert("RGB").save(buf, format="PNG")
-        return buf.getvalue()
+        return buf.getvalue(), "fallback"
     except Exception:
-        return None
+        return None, "error"
+
+
+def _banner_bytes(key: Optional[str]) -> Optional[bytes]:
+    data, _ = _banner_payload(key)
+    return data
 
 
 async def build_profile(bot, member: discord.Member, row) -> tuple[discord.Embed, discord.File]:
@@ -1321,9 +1326,14 @@ async def build_profile(bot, member: discord.Member, row) -> tuple[discord.Embed
         av = await member.display_avatar.replace(size=128).read()
     except Exception:
         av = None
-    data = await banners.profile_banner(av, _banner_bytes(row["active_banner"]), accent)
+    banner_key = row["active_banner"]
+    bg_bytes, bg_source = _banner_payload(banner_key)
+    data = await banners.profile_banner(av, bg_bytes, accent)
     file = discord.File(io.BytesIO(data), filename="profile.png")
     embed.set_image(url="attachment://profile.png")
+    if banner_key:
+        label = APPEARANCE_NAMES.get(banner_key, banner_key)
+        embed.set_footer(text=f"Фон: {label} · {banner_key} · {bg_source}")
     return embed, file
 
 
