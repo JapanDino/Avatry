@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import platform
+from pathlib import Path
 
 import discord
 from discord import app_commands
@@ -9,6 +10,7 @@ from discord.ext import commands, tasks
 
 import config
 from core import embeds
+from core import version
 
 
 def _humanize_uptime(delta_seconds: float) -> str:
@@ -109,6 +111,25 @@ class About(commands.Cog):
             url=f"https://discord.com/users/{config.DEVELOPER_ID}",
         ))
         await ctx.reply(embed=embed, view=view, mention_author=False)
+
+    @commands.hybrid_command(name="buildinfo", description="Показать версию кода, запущенную на хостинге")
+    @commands.guild_only()
+    async def buildinfo(self, ctx: commands.Context) -> None:
+        banner_dir = Path(__file__).resolve().parent.parent / "assets" / "banners"
+        banner_files = sorted(p.name for p in banner_dir.glob("*.png")) if banner_dir.exists() else []
+        embed = embeds.base(
+            title="Build info",
+            description=(
+                f"Marker: `{version.BUILD_MARKER}`\n"
+                f"Database: `{config.DATABASE_PATH}`\n"
+                f"CWD: `{Path.cwd()}`\n"
+                f"Banner dir: `{banner_dir}`\n"
+                f"Banners: `{len(banner_files)}`"
+            ),
+        )
+        if banner_files:
+            embed.add_field(name="Banner files", value="\n".join(f"`{name}`" for name in banner_files), inline=False)
+        await ctx.reply(embed=embed, mention_author=False)
 
 
 async def setup(bot: commands.Bot) -> None:
