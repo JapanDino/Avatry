@@ -11,10 +11,11 @@ import sys
 
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 import config
 from core import embeds
+from core import owner_reports
 from core.database import Database
 from core.notify import OwnerNotifier
 from core.permissions import MissingAccess
@@ -145,6 +146,21 @@ class SamuraiBot(commands.Bot):
             self.app_command_count = len(synced)
             log.info("Synced %d global commands", len(synced))
 
+        if not self.owner_digest.is_running():
+            self.owner_digest.start()
+
+    @tasks.loop(hours=24)
+    async def owner_digest(self) -> None:
+        await owner_reports.send_owner_embeds(
+            self,
+            await owner_reports.build_overview_embeds(self, title="Daily owner report"),
+        )
+
+    @owner_digest.before_loop
+    async def before_owner_digest(self) -> None:
+        await self.wait_until_ready()
+        await asyncio.sleep(24 * 60 * 60)
+
     async def on_ready(self) -> None:
         log.info("Logged in as %s (id=%s)", self.user, self.user.id if self.user else "?")
         # Presence is managed (and rotated) by the About cog.
@@ -161,8 +177,15 @@ class SamuraiBot(commands.Bot):
                 },
                 key="startup",
             )
+            await owner_reports.send_owner_embeds(
+                self,
+                await owner_reports.build_overview_embeds(self, title="Startup owner report"),
+            )
 
     async def on_guild_join(self, guild: discord.Guild) -> None:
+        detail = await owner_reports.build_guild_detail_embed(
+            self, guild, title="Bot joined a guild"
+        )
         await self.notifier.send(
             "Бота добавили на сервер",
             level="info",
@@ -173,6 +196,7 @@ class SamuraiBot(commands.Bot):
             },
             key=f"join:{guild.id}",
         )
+        await owner_reports.send_owner_embeds(self, [detail])
 
     async def on_guild_remove(self, guild: discord.Guild) -> None:
         await self.notifier.send(
@@ -180,6 +204,10 @@ class SamuraiBot(commands.Bot):
             level="warning",
             fields={"Сервер": f"{guild.name} (`{guild.id}`)"},
             key=f"remove:{guild.id}",
+        )
+        await owner_reports.send_owner_embeds(
+            self,
+            await owner_reports.build_overview_embeds(self, title="Guild removed owner report"),
         )
 
     async def on_command_error(
@@ -217,6 +245,7 @@ class SamuraiBot(commands.Bot):
             )
 
     async def close(self) -> None:
+        self.owner_digest.cancel()
         await self.db.close()
         await super().close()
 
